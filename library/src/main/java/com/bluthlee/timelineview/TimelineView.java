@@ -44,6 +44,7 @@ public class TimelineView extends ViewGroup {
 
     private int lastX;
     private int lastY;
+    private int contentHeight;
     private OverScroller overScroller;
     private VelocityTracker velocityTracker;
 
@@ -160,6 +161,7 @@ public class TimelineView extends ViewGroup {
     public boolean onTouchEvent(MotionEvent event) {
         int x = (int) event.getX();
         int y = (int) event.getY();
+        velocityTracker.addMovement(event);
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 //如果在滑动则中断滑动
@@ -167,12 +169,16 @@ public class TimelineView extends ViewGroup {
                 lastY = y;
                 break;
             case MotionEvent.ACTION_MOVE:
-                scrollBy(0, lastY - y);
+//                scrollBy(0, lastY - y);
+                overScrollBy(0, lastY - y, getScrollX(), getScrollY(), 0, getScrollRangeY(), 0, 0, false);
                 lastX = x;
                 lastY = y;
                 break;
             case MotionEvent.ACTION_UP:
-                velocityTracker.addMovement();
+                velocityTracker.computeCurrentVelocity(1000);
+                int velocity = (int) velocityTracker.getYVelocity();
+                overScroller.fling(getScrollX(), getScrollY(), 0, -velocity, 0, 0, 0, getScrollRangeY());
+                velocityTracker.clear();
                 break;
             case MotionEvent.ACTION_POINTER_DOWN:
 
@@ -186,7 +192,22 @@ public class TimelineView extends ViewGroup {
 
     @Override
     public void computeScroll() {
-        super.computeScroll();
+        if (overScroller.computeScrollOffset()) {
+            scrollTo(overScroller.getCurrX(), overScroller.getCurrY());
+            invalidate();
+        }
+    }
+
+    @Override
+    protected void onOverScrolled(int scrollX, int scrollY, boolean clampedX, boolean clampedY) {
+        scrollTo(scrollX, scrollY);
+        if (clampedY) {
+            overScroller.springBack(getScrollX(), getScrollY(), 0, 0, 0, getScrollRangeY());
+        }
+    }
+
+    private int getScrollRangeY() {
+        return Math.max(0, contentHeight - getHeight());
     }
 
     private int getWidthFromChildren() {
@@ -218,8 +239,10 @@ public class TimelineView extends ViewGroup {
 
     private void setPointPositionY() {
         pointPositionY.clear();
+        contentHeight = 0;
         for (int i = 0; i < getChildCount(); i++) {
             View view = getChildAt(i);
+            contentHeight += view.getHeight();
             pointPositionY.add((int) (view.getY() + view.getHeight() / 2));
         }
     }
